@@ -12,8 +12,8 @@ RUN npm run build -- --configuration ${NG_ENV}
 ########## STAGE 2: Nginx runtime ##########
 FROM nginx:1.27-alpine AS runtime
 # RUTAS RELATIVAS AL CONTEXTO (la raíz del repo), no a la ubicación del Dockerfile
-COPY docker/nginx.conf.template /etc/nginx/templates/app.conf.template
-COPY docker/entrypoint.sh /entrypoint.sh
+COPY nginx.conf.template /etc/nginx/templates/app.conf.template
+COPY entrypoint.sh /entrypoint.sh
 RUN adduser -D -H -u 10101 app \
  && chmod +x /entrypoint.sh \
  && sed -i 's/user  nginx;/user  app;/' /etc/nginx/nginx.conf
