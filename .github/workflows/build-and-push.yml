@@ -1,41 +1,85 @@
-name: build-and-push
+name: CI → TEST (build & redeploy via SSH)
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
+  workflow_dispatch: {}
 
 jobs:
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       packages: write
+      contents: read
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Compose IMAGE_NAME
+      # 👇 Calcula el nombre de la imagen (todo en minúsculas)
+      - name: Compose image name
+        id: prep
+        shell: bash
         run: |
-          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${GITHUB_REPOSITORY##*/}-lawapp" >> $GITHUB_ENV
-          echo "Usando imagen: ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${GITHUB_REPOSITORY##*/}-lawapp"
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          REPO="$(basename "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          IMAGE="ghcr.io/${OWNER}/${REPO}-lawapp"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "Usando imagen: ${IMAGE}"
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
+      - name: Login to GHCR (push with GITHUB_TOKEN)
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push Docker image
+      # Opcional: debug de archivos
+      - name: Debug - lista archivos
+        run: |
+          pwd
+          ls -la
+          echo '--- docker ---'
+          ls -la docker || true
+
+      - name: Build & Push (test-latest + sha)
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile
+          file: docker/Dockerfile
+          build-args: |
+            NG_ENV=production
           push: true
           tags: |
-            ${{ env.IMAGE_NAME }}:test-latest
-            ${{ env.IMAGE_NAME }}:test-${{ github.sha }}
+            ${{ steps.prep.outputs.image }}:test-latest
+            ${{ steps.prep.outputs.image }}:test-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  redeploy-on-vps:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH redeploy (Swarm)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            # Si tu imagen en GHCR es pública, puedes omitir el login en el VPS.
+            # Si es privada, descomenta y usa un PAT con read:packages:
+            # echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+
+            SERVICE="app-dev_app_test"
+            IMAGE="${{ needs.build-and-push.outputs.image || 'ghcr.io/' }}${{ github.repository_owner }}/salgadolawapp-lawapp:test-latest"
+
+            docker service update \
+              --with-registry-auth \
+              --image "ghcr.io/${{ github.repository_owner }}/salgadolawapp-lawapp:test-latest" \
+              --force "$SERVICE"
+
+            docker service ps "$SERVICE" --no-trunc
