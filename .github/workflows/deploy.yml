@@ -1,7 +1,72 @@
-# en la raíz del repo
-mkdir -p .github/workflows
-nano .github/workflows/deploy.yml   # o usa tu editor favorito
-# pega el YAML, guarda y cierra
-git add .github/workflows/deploy.yml
-git commit -m "chore(ci): add deploy workflow"
-git push origin main
+name: Build & Deploy (GHCR → VPS)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Si tu repo ya tiene Dockerfile que hace el build, no necesitas pasos de Node.
+      # Si prefieres build previo de Angular (opcional), descomenta:
+      # - uses: actions/setup-node@v4
+      #   with:
+      #     node-version: '20'
+      #     cache: 'npm'
+      # - run: npm ci
+      # - run: npm run build --if-present
+
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build & Push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.IMAGE_NAME }}:latest
+            ${{ secrets.IMAGE_NAME }}:${{ github.sha }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare SSH
+        run: |
+          echo "${{ secrets.VPS_SSH_KEY }}" > key.pem
+          chmod 600 key.pem
+          mkdir -p ~/.ssh
+          if [ -n "${{ secrets.VPS_KNOWN_HOSTS }}" ]; then
+            echo "${{ secrets.VPS_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+          else
+            ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+          fi
+
+      - name: Deploy on VPS (pull + compose up -d)
+        run: |
+          ssh -i key.pem -o IdentitiesOnly=yes ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOSSH'
+            set -e
+            cd /opt/lawapp
+            echo "Login GHCR..."
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+            echo "Pull image..."
+            docker pull ${{ secrets.IMAGE_NAME }}:latest
+            echo "Compose up..."
+            docker compose up -d
+            echo "Prune old images..."
+            docker image prune -f
+          EOSSH
+
