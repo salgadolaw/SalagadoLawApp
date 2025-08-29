@@ -60,7 +60,7 @@ jobs:
             set -e
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
 
-            SERVICE="<NOMBRE_DEL_SERVICIO_SWARM>"   # ej: app-dev_app_test
+            SERVICE="app-dev_app_test"   # ej: app-dev_app_test
             docker service update \
               --with-registry-auth \
               --image ${{ secrets.IMAGE_NAME }}:test-latest \
