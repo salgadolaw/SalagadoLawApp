@@ -1,0 +1,7 @@
+# en la raíz del repo
+mkdir -p .github/workflows
+nano .github/workflows/deploy.yml   # o usa tu editor favorito
+# pega el YAML, guarda y cierra
+git add .github/workflows/deploy.yml
+git commit -m "chore(ci): add deploy workflow"
+git push origin main
