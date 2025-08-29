@@ -2,38 +2,31 @@ name: CI → TEST (build & redeploy via SSH)
 
 on:
   push:
-    branches: [ main ]  # o la rama que uses para TEST
-    paths:
-      - 'src/**'
-      - 'docker/**'
-      - 'package*.json'
-      - 'angular.json'
-      - '.github/workflows/ci-test.yml'
+    branches: [ main ]
+  workflow_dispatch: {}         # permite dispararlo manualmente desde Actions
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      packages: write     # publicar en GHCR con GITHUB_TOKEN
+      packages: write
       contents: read
     env:
       IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Login to GHCR (push)
+      - name: Login GHCR (push)
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & Push image (test-latest + sha)
+      - name: Build & Push (test-latest + sha)
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -62,18 +55,11 @@ jobs:
             set -e
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
 
-            # Opcional: pull explícito (no necesario, el update forzado lo hace)
-            docker pull ${{ secrets.IMAGE_NAME }}:test-latest || true
-
-            # Cambia por el nombre real de tu servicio Swarm:
-            SERVICE="app-dev_app_test"   # ej: app-dev_app_test
-
-            # Redeploy forzado con credenciales del registry
+            SERVICE="<NOMBRE_DEL_SERVICIO_SWARM>"   # ej: app-dev_app_test
             docker service update \
               --with-registry-auth \
               --image ${{ secrets.IMAGE_NAME }}:test-latest \
               --force \
               "$SERVICE"
 
-            # Mostrar estado
             docker service ps "$SERVICE" --no-trunc
