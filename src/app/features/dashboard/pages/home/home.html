@@ -1,0 +1,3 @@
+<h2>Bienvenido 👋</h2>
+<p *ngIf="claims()">Usuario: {{ claims()?.name || claims()?.email || 'sin nombre' }}</p>
+<pre *ngIf="claims()">{{ claims() | json }}</pre>

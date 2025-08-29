@@ -7,7 +7,10 @@
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
-          "style": "scss"
+          "standalone": true,
+          "style": "scss",
+          "skipTests": true,
+          "type": "component"
         }
       },
       "root": "",
@@ -47,6 +50,12 @@
               "outputHashing": "all"
             },
             "development": {
+               "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.development.ts"
+                }
+              ],
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
@@ -56,6 +65,9 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "proxyConfig": "proxy.conf.json"
+          },
           "configurations": {
             "production": {
               "buildTarget": "LawSalgadoApp:build:production"
@@ -87,5 +99,8 @@
         }
       }
     }
+  },
+  "cli": {
+    "analytics": "6e6da0cf-1a02-4c06-8c19-02778efbcaac"
   }
 }

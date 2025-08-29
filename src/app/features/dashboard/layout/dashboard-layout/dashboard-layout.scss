@@ -1,0 +1,13 @@
+mat-sidenav { background: #fff;
+}
+
+.autoslider {
+  width: fit-content;    /* se ajusta al contenido */
+  max-width: 90vw;       /* evita desbordes en pantallas pequeñas */
+  min-width: 0;          /* permite encoger si el layout lo pide */
+}
+
+/* Si Angular Material te impone un ancho por defecto, sube la especificidad */
+mat-sidenav.autoslider {
+  width: fit-content !important;
+}

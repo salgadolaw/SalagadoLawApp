@@ -1,0 +1,8 @@
+{
+  "/api": {
+    "target": "https://webhook.salgadoimmigrationlaw.com",
+    "secure": true,
+    "changeOrigin": true,
+    "pathRewrite": { "^/api": "/webhook" }
+  }
+}

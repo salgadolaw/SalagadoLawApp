@@ -1,1 +1,28 @@
-/* You can add global styles to this file, and also import other style files */
+
+// Include theming for Angular Material with `mat.theme()`.
+// This Sass mixin will define CSS variables that are used for styling Angular Material
+// components according to the Material 3 design spec.
+// Learn more about theming and how to use it for your application's
+// custom components at https://material.angular.dev/guide/theming
+/* 1) TODOS los @use van primero */
+/* === Material + Tailwind (orden correcto) === */
+/* === Tailwind sin preflight + Material (M3) === */
+/* === Tailwind v4 SIN preflight (oficial) === */
+@use "@angular/material" as mat;
+@layer theme, base, components, utilities;
+/* importa solo theme y utilities (omitiendo preflight) */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Angular Material (M3) */
+/*
+
+*/
+$theme: mat.define-theme(( color: ( theme-type: light ) ));
+@include mat.core();
+:root { @include mat.all-component-themes($theme); }
+
+/* base */
+html, body { height: 100%; }
+body { margin: 0; }
+
