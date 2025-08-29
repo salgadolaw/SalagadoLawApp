@@ -5,7 +5,7 @@ COPY docker/entrypoint.sh /entrypoint.sh
 RUN adduser -D -H -u 10101 app \
  && chmod +x /entrypoint.sh \
  && sed -i 's/user  nginx;/user  app;/' /etc/nginx/nginx.conf
-COPY --from=build /app/dist/*/browser /usr/share/nginx/html
+COPY --from=build /dist/*/browser /usr/share/nginx/html
 ENV N8N_BASE=https://webhook.salgadoimmigrationlaw.com/webhook
 ENTRYPOINT ["/entrypoint.sh"]
 
