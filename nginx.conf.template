@@ -2,35 +2,73 @@ server {
   listen 80 default_server;
   server_name _;
 
+  # Raíz del build de Angular
   root /usr/share/nginx/html;
   index index.html;
 
-  # Seguridad
+  # -------------------------
+  # Cabeceras de seguridad
+  # -------------------------
   add_header X-Frame-Options SAMEORIGIN always;
   add_header X-Content-Type-Options nosniff always;
   add_header Referrer-Policy strict-origin-when-cross-origin always;
   add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
 
-  # Estáticos con cache
+  # -------------------------
+  # Archivos estáticos (cache)
+  # -------------------------
   location ~* \.(?:js|css|png|jpg|jpeg|gif|svg|ico|woff2?)$ {
     expires 7d;
+    add_header Cache-Control "public, max-age=604800, immutable";
     access_log off;
     try_files $uri =404;
   }
 
-  # Proxy a n8n → /api/*
+  # -------------------------------------------------
+  # Proxy a n8n → /api/*   (envsubst reemplaza $N8N_BASE)
+  #   Ej: /api/auth/login  ->  https://.../webhook/auth/login
+  # -------------------------------------------------
+  # (Opcional) CORS: ajusta el origen si tu front no es el mismo host
+  set $cors_origin "https://dev-app.salgadoimmigrationlaw.com";  # <-- AJUSTA si aplica
+
   location /api/ {
-    rewrite ^/api/?(.*)$ /$1 break;    # quita /api
-    proxy_pass $N8N_BASE;              # termina en /webhook
+    # Preflight CORS
+    if ($request_method = 'OPTIONS') {
+      add_header Access-Control-Allow-Origin $cors_origin always;
+      add_header Access-Control-Allow-Credentials true always;
+      add_header Access-Control-Allow-Headers $http_access_control_request_headers always;
+      add_header Access-Control-Allow-Methods "GET,POST,PUT,PATCH,DELETE,OPTIONS" always;
+      return 204;
+    }
+
+    # CORS simple (si tu front está en otro origen)
+    add_header Access-Control-Allow-Origin $cors_origin always;
+    add_header Access-Control-Allow-Credentials true always;
+
+    # Proxy directo al webhook de n8n (¡barra final importante!)
+    proxy_pass $N8N_BASE/;
     proxy_http_version 1.1;
+
+    # Encabezados útiles hacia el upstream
     proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+
+    # HTTPS upstream (SNI)
+    proxy_ssl_server_name on;
+
+    # Timeouts
     proxy_connect_timeout 5s;
     proxy_read_timeout 60s;
+
+    # Tamaño máximo de payload (ajusta si necesitas subir archivos grandes)
+    client_max_body_size 10m;
   }
 
+  # -------------------------
   # SPA fallback
+  # -------------------------
   location / {
     try_files $uri $uri/ /index.html;
   }
