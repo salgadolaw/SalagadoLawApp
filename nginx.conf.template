@@ -2,21 +2,24 @@ server {
   listen 80 default_server;
   server_name _;
 
+  # Necesario si proxy_pass usa variable ($N8N_BASE)
+  resolver 1.1.1.1 8.8.8.8 ipv6=off valid=300s;
+  resolver_timeout 5s;
+
+  # Tamaño máximo de payload (aplica a toda la app)
+  client_max_body_size 10m;
+
   # Raíz del build de Angular
   root /usr/share/nginx/html;
   index index.html;
 
-  # -------------------------
-  # Cabeceras de seguridad
-  # -------------------------
+  # Seguridad
   add_header X-Frame-Options SAMEORIGIN always;
   add_header X-Content-Type-Options nosniff always;
   add_header Referrer-Policy strict-origin-when-cross-origin always;
   add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
 
-  # -------------------------
-  # Archivos estáticos (cache)
-  # -------------------------
+  # Estáticos con cache
   location ~* \.(?:js|css|png|jpg|jpeg|gif|svg|ico|woff2?)$ {
     expires 7d;
     add_header Cache-Control "public, max-age=604800, immutable";
@@ -24,70 +27,62 @@ server {
     try_files $uri =404;
   }
 
-  # -------------------------------------------------
-  # Proxy a n8n → /api/*   (envsubst reemplaza $N8N_BASE)
-  #   Ej: /api/auth/login  ->  https://.../webhook/auth/login
-  # -------------------------------------------------
-  # (Opcional) CORS: ajusta el origen si tu front no es el mismo host
-  # CORS: ajusta si tu front está en otro origin; si es el mismo host, puedes quitarlo
-set $cors_origin "https://dev-app.salgadoimmigrationlaw.com";
+  # ---------- Proxy a n8n ----------
+  set $cors_origin "https://dev-app.salgadoimmigrationlaw.com";
 
-# EXACTO /api  (sin barra final)
-location = /api {
-  # Preflight
-  if ($request_method = 'OPTIONS') {
+  # EXACTO /api (sin barra)
+  location = /api {
+    if ($request_method = 'OPTIONS') {
+      add_header Access-Control-Allow-Origin $cors_origin always;
+      add_header Access-Control-Allow-Credentials true always;
+      add_header Access-Control-Allow-Headers $http_access_control_request_headers always;
+      add_header Access-Control-Allow-Methods "GET,POST,PUT,PATCH,DELETE,OPTIONS" always;
+      add_header Vary Origin always;
+      return 204;
+    }
+
     add_header Access-Control-Allow-Origin $cors_origin always;
     add_header Access-Control-Allow-Credentials true always;
-    add_header Access-Control-Allow-Headers $http_access_control_request_headers always;
-    add_header Access-Control-Allow-Methods "GET,POST,PUT,PATCH,DELETE,OPTIONS" always;
-    return 204;
+    add_header Vary Origin always;
+
+    proxy_pass $N8N_BASE/;           # termina en /webhook/
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_ssl_server_name on;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 60s;
   }
 
-  add_header Access-Control-Allow-Origin $cors_origin always;
-  add_header Access-Control-Allow-Credentials true always;
+  # Prefijo /api/ (con barra)
+  location ^~ /api/ {
+    if ($request_method = 'OPTIONS') {
+      add_header Access-Control-Allow-Origin $cors_origin always;
+      add_header Access-Control-Allow-Credentials true always;
+      add_header Access-Control-Allow-Headers $http_access_control_request_headers always;
+      add_header Access-Control-Allow-Methods "GET,POST,PUT,PATCH,DELETE,OPTIONS" always;
+      add_header Vary Origin always;
+      return 204;
+    }
 
-  proxy_pass $N8N_BASE/;           # ¡barra final!
-  proxy_http_version 1.1;
-  proxy_set_header Host $host;
-  proxy_set_header X-Real-IP $remote_addr;
-  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header X-Forwarded-Proto $scheme;
-  proxy_ssl_server_name on;
-  proxy_connect_timeout 5s;
-  proxy_read_timeout 60s;
-  client_max_body_size 10m;
-}
-
-# Prefijo /api/ (con barra)
-location ^~ /api/ {
-  # Preflight
-  if ($request_method = 'OPTIONS') {
     add_header Access-Control-Allow-Origin $cors_origin always;
     add_header Access-Control-Allow-Credentials true always;
-    add_header Access-Control-Allow-Headers $http_access_control_request_headers always;
-    add_header Access-Control-Allow-Methods "GET,POST,PUT,PATCH,DELETE,OPTIONS" always;
-    return 204;
+    add_header Vary Origin always;
+
+    proxy_pass $N8N_BASE/;           # quita el prefijo /api/
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_ssl_server_name on;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 60s;
   }
 
-  add_header Access-Control-Allow-Origin $cors_origin always;
-  add_header Access-Control-Allow-Credentials true always;
-
-  proxy_pass $N8N_BASE/;           # ¡barra final!
-  proxy_http_version 1.1;
-  proxy_set_header Host $host;
-  proxy_set_header X-Real-IP $remote_addr;
-  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header X-Forwarded-Proto $scheme;
-  proxy_ssl_server_name on;
-  proxy_connect_timeout 5s;
-  proxy_read_timeout 60s;
-  client_max_body_size 10m;
-}
-
-
-  # -------------------------
   # SPA fallback
-  # -------------------------
   location / {
     try_files $uri $uri/ /index.html;
   }
