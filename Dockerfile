@@ -30,5 +30,5 @@ RUN set -eux; \
     cp -r "$FIRST"/* /usr/share/nginx/html/; \
   fi
 
-ENV N8N_BASE=https://webhook.salgadoimmigrationlaw.com/webhook
+ENV N8N_BASE=https://webhook.salgadoimmigrationlaw.com
 ENTRYPOINT ["/entrypoint.sh"]
