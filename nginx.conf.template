@@ -2,28 +2,22 @@ server {
   listen 80 default_server;
   server_name _;
 
-  # Necesario porque proxy_pass usa una variable ($N8N_BASE)
+  # Necesario porque proxy_pass usa variable ($N8N_BASE)
   resolver 1.1.1.1 8.8.8.8 ipv6=off valid=300s;
   resolver_timeout 5s;
 
-  # Tamaño máximo de payload (global)
   client_max_body_size 10m;
 
-  # Raíz del build de Angular
   root /usr/share/nginx/html;
   index index.html;
 
-  # -------------------------
-  # Cabeceras de seguridad
-  # -------------------------
+  # Seguridad
   add_header X-Frame-Options SAMEORIGIN always;
   add_header X-Content-Type-Options nosniff always;
   add_header Referrer-Policy strict-origin-when-cross-origin always;
   add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
 
-  # -------------------------
-  # Archivos estáticos (cache)
-  # -------------------------
+  # Estáticos
   location ~* \.(?:js|css|png|jpg|jpeg|gif|svg|ico|woff2?)$ {
     expires 7d;
     add_header Cache-Control "public, max-age=604800, immutable";
@@ -31,15 +25,11 @@ server {
     try_files $uri =404;
   }
 
-  # -------------------------
-  # Proxy a n8n (CORS opcional)
-  # Si tu front está en el mismo host, puedes quitar CORS.
-  # Ajusta el origen si aplica:
+  # CORS (si tu front es el mismo host, puedes quitarlo)
   set $cors_origin "https://dev-app.salgadoimmigrationlaw.com";
 
-  # EXACTO /api  (sin barra final)
+  # EXACTO /api (sin barra)
   location = /api {
-    # Preflight
     if ($request_method = 'OPTIONS') {
       add_header Access-Control-Allow-Origin $cors_origin always;
       add_header Access-Control-Allow-Credentials true always;
@@ -53,10 +43,10 @@ server {
     add_header Access-Control-Allow-Credentials true always;
     add_header Vary Origin always;
 
-    # Quita el prefijo /api antes de proxyear
-    rewrite ^/api/?(.*)$ /$1 break;
+    # Quita /api y añade /webhook/… para n8n
+    rewrite ^/api/?(.*)$ /webhook/$1 break;
 
-    # OJO: sin "/" al final; $N8N_BASE ya incluye /webhook
+    # proxy_pass SOLO al origin (sin path)
     proxy_pass $N8N_BASE;
     proxy_http_version 1.1;
 
@@ -72,7 +62,6 @@ server {
 
   # Prefijo /api/ (con barra)
   location ^~ /api/ {
-    # Preflight
     if ($request_method = 'OPTIONS') {
       add_header Access-Control-Allow-Origin $cors_origin always;
       add_header Access-Control-Allow-Credentials true always;
@@ -86,10 +75,10 @@ server {
     add_header Access-Control-Allow-Credentials true always;
     add_header Vary Origin always;
 
-    # Quita el prefijo /api/...
-    rewrite ^/api/?(.*)$ /$1 break;
+    # Quita /api/... y añade /webhook/… para n8n
+    rewrite ^/api/?(.*)$ /webhook/$1 break;
 
-    # Sin "/" al final
+    # proxy_pass SOLO al origin (sin path)
     proxy_pass $N8N_BASE;
     proxy_http_version 1.1;
 
@@ -103,9 +92,7 @@ server {
     proxy_read_timeout 60s;
   }
 
-  # -------------------------
   # SPA fallback
-  # -------------------------
   location / {
     try_files $uri $uri/ /index.html;
   }
