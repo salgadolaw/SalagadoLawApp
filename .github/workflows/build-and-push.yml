@@ -11,14 +11,16 @@ jobs:
     permissions:
       packages: write
       contents: read
+    outputs:
+      image: ${{ steps.prep.outputs.image }}
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: docker/setup-buildx-action@v3
 
-      # 👇 Calcula el nombre de la imagen (todo en minúsculas)
-      - name: Compose image name
+      # Calcula el nombre de la imagen (todo en minúsculas)
+      - name: Compose image name (lowercase)
         id: prep
         shell: bash
         run: |
@@ -35,19 +37,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Opcional: debug de archivos
+      # Debug útil (verifica que existan los archivos en raíz)
       - name: Debug - lista archivos
         run: |
           pwd
           ls -la
-          echo '--- docker ---'
-          ls -la docker || true
+          echo '--- head Dockerfile ---'
+          sed -n '1,60p' ./Dockerfile || true
 
       - name: Build & Push (test-latest + sha)
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile          # <<<< ahora en la RAÍZ
           build-args: |
             NG_ENV=production
           push: true
@@ -70,16 +72,15 @@ jobs:
           script_stop: true
           script: |
             set -e
-            # Si tu imagen en GHCR es pública, puedes omitir el login en el VPS.
-            # Si es privada, descomenta y usa un PAT con read:packages:
-            # echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
-
             SERVICE="app-dev_app_test"
-            IMAGE="${{ needs.build-and-push.outputs.image || 'ghcr.io/' }}${{ github.repository_owner }}/salgadolawapp-lawapp:test-latest"
+            IMAGE="${{ needs.build-and-push.outputs.image }}:test-latest"
+
+            # Si tu imagen en GHCR es privada, descomenta login con PAT:
+            # echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
 
             docker service update \
               --with-registry-auth \
-              --image "ghcr.io/${{ github.repository_owner }}/salgadolawapp-lawapp:test-latest" \
+              --image "$IMAGE" \
               --force "$SERVICE"
 
             docker service ps "$SERVICE" --no-trunc
