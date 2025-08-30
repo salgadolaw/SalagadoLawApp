@@ -3,7 +3,7 @@ name: Build & Deploy (GHCR → VPS)
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -12,33 +12,51 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.prep.outputs.image }}
+
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
 
-      # Si tu repo ya tiene Dockerfile que hace el build, no necesitas pasos de Node.
-      # Si prefieres build previo de Angular (opcional), descomenta:
-      # - uses: actions/setup-node@v4
-      #   with:
-      #     node-version: '20'
-      #     cache: 'npm'
-      # - run: npm ci
-      # - run: npm run build --if-present
+      # ⇩ nombre de imagen en minúsculas: ghcr.io/<owner>/<repo>-lawapp
+      - name: Compose image name (lowercase)
+        id: prep
+        shell: bash
+        run: |
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          REPO="$(basename "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          IMAGE="ghcr.io/${OWNER}/${REPO}-lawapp"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "Usando imagen: ${IMAGE}"
 
-      - name: Login GHCR
+      - name: Login GHCR for push (GITHUB_TOKEN)
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ secrets.GHCR_USERNAME }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & Push image
-        uses: docker/build-push-action@v6
+      - name: Debug - show Dockerfile
+        run: |
+          pwd
+          ls -la
+          echo '--- Dockerfile (head) ---'
+          sed -n '1,80p' ./Dockerfile
+
+      - name: Build & Push image (latest + sha)
+        uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile
+          build-args: |
+            NG_ENV=production
           push: true
           tags: |
-            ${{ secrets.IMAGE_NAME }}:latest
-            ${{ secrets.IMAGE_NAME }}:${{ github.sha }}
+            ${{ steps.prep.outputs.image }}:latest
+            ${{ steps.prep.outputs.image }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   deploy:
     needs: build-and-push
@@ -56,17 +74,25 @@ jobs:
           fi
 
       - name: Deploy on VPS (pull + compose up -d)
+        env:
+          IMAGE: ${{ needs.build-and-push.outputs.image }}
         run: |
           ssh -i key.pem -o IdentitiesOnly=yes ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOSSH'
             set -e
-            cd /opt/lawapp
-            echo "Login GHCR..."
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+            # Si la imagen en GHCR es privada, haz login con PAT (read:packages):
+            if [ -n "${{ secrets.GHCR_TOKEN }}" ] && [ -n "${{ secrets.GHCR_USERNAME }}" ]; then
+              echo "Login GHCR on VPS..."
+              echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+            fi
+
             echo "Pull image..."
-            docker pull ${{ secrets.IMAGE_NAME }}:latest
+            docker pull "${IMAGE}:latest"
+
             echo "Compose up..."
+            cd /opt/lawapp
+            docker compose pull || true
             docker compose up -d
+
             echo "Prune old images..."
             docker image prune -f
           EOSSH
-
