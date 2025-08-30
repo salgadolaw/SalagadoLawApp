@@ -7,7 +7,7 @@ on:
 
 permissions:
   contents: read
-  packages: write   # necesario para push a GHCR
+  packages: write
 
 jobs:
   build-and-push:
@@ -17,7 +17,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
       - uses: docker/setup-buildx-action@v3
 
       # Nombre de imagen en minúsculas: ghcr.io/<owner>/<repo>-lawapp
@@ -31,21 +30,12 @@ jobs:
           echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
           echo "Usando imagen: ${IMAGE}"
 
-      # Login a GHCR para hacer push (usa GITHUB_TOKEN)
-      - name: Login GHCR for push
+      - name: Login GHCR for push (GITHUB_TOKEN)
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # (Opcional) debug
-      - name: Debug - lista archivos
-        run: |
-          pwd
-          ls -la
-          echo '--- head Dockerfile ---'
-          sed -n '1,80p' ./Dockerfile || true
 
       - name: Build & Push image (latest + sha)
         uses: docker/build-push-action@v5
@@ -76,33 +66,35 @@ jobs:
             ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
           fi
 
-      - name: Deploy on VPS (pull + compose up -d)
+      - name: Deploy on VPS (Swarm service update)
         run: |
           ssh -i key.pem -o IdentitiesOnly=yes ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOSSH'
             set -e
 
-            # Inyecta el nombre de la imagen desde el job de build
             IMAGE="${{ needs.build-and-push.outputs.image }}"   # p.ej. ghcr.io/salgadolaw/salgadolawapp-lawapp
             TAG="latest"
 
-            # Si tu imagen en GHCR es privada, login con PAT (read:packages) en el VPS:
+            # SERVICE: puedes definir secrets.SWARM_SERVICE en GitHub.
+            SERVICE="${{ secrets.SWARM_SERVICE }}"
+            if [ -z "$SERVICE" ]; then
+              SERVICE="app-dev_app_test"   # valor por defecto (lo que usas en CI → TEST)
+            fi
+
+            # Si la imagen en GHCR es privada, login con PAT (read:packages)
             if [ -n "${{ secrets.GHCR_TOKEN }}" ] && [ -n "${{ secrets.GHCR_USERNAME }}" ]; then
               echo "Login GHCR on VPS..."
               echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
-            else
-              echo "Saltando login GHCR en VPS (imagen pública o sin credenciales)..."
             fi
 
-            echo "Pull image: ${IMAGE}:${TAG}"
-            docker pull "${IMAGE}:${TAG}"
+            echo "Pull (opcional, Swarm hará pull igualmente con --with-registry-auth)..."
+            docker pull "${IMAGE}:${TAG}" || true
 
-            echo "Compose up..."
-            cd /opt/lawapp
-            # Asegúrate de que tu docker-compose.yml referencia la misma imagen:
-            #   image: ghcr.io/<owner>/<repo>-lawapp:latest
-            docker compose pull || true
-            docker compose up -d
+            echo "Updating service: $SERVICE -> ${IMAGE}:${TAG}"
+            docker service update \
+              --with-registry-auth \
+              --image "${IMAGE}:${TAG}" \
+              --force "$SERVICE"
 
-            echo "Prune old images..."
-            docker image prune -f
+            echo "Service tasks:"
+            docker service ps "$SERVICE" --no-trunc
           EOSSH
