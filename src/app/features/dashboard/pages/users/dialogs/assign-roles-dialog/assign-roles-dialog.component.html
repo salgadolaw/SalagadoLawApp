@@ -1,0 +1,17 @@
+<h2 mat-dialog-title>Asignar roles a {{ user.v_firstname }}</h2>
+<div mat-dialog-content>
+  @if (loading()) { Cargando roles… }
+  @else {
+    <mat-selection-list>
+      @for (r of roles(); track r.id) {
+        <mat-list-option [selected]="selected().has(r.id)" (click)="toggle(r.id)">
+          {{ r.label }}
+        </mat-list-option>
+      }
+    </mat-selection-list>
+  }
+</div>
+<div mat-dialog-actions align="end">
+  <button mat-button (click)="close()">Cancelar</button>
+  <button mat-flat-button color="primary" (click)="save()">Guardar</button>
+</div>

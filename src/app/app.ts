@@ -12,6 +12,7 @@ export class App {
   protected readonly title = signal('LawSalgadoApp');
   private idle=inject(IdleService);
   ngOnInit(){
+
     this.idle.start();
   }
 }

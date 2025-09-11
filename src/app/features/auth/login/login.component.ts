@@ -1,5 +1,5 @@
 
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, inject, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -15,13 +15,13 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
+import { AutoFocus } from '../../../shared/directives/auto-focus';
 
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink,MatFormFieldModule,MatInputModule, MatButtonModule, MatIconModule,MatProgressSpinnerModule,MatCardModule, MatSnackBarModule,
-  ],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, MatFormFieldModule, MatInputModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatCardModule, MatSnackBarModule, AutoFocus],
   templateUrl: './login.html',
   styleUrls: ['./login.scss'],
 })
@@ -29,8 +29,10 @@ export class LoginComponent {
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
   private router = inject(Router);
+@ViewChild('email') emailInput!: ElementRef<HTMLInputElement>;
+ private cdr = inject(ChangeDetectorRef);
 
- value='Hola';
+
 
 
     loading = signal(false);
@@ -42,9 +44,19 @@ export class LoginComponent {
     password: ['', [Validators.required]],
   });
 
+focusTick = 0;
+
+
  clearEmail() {
     this.form.controls.email.setValue('');
   }
+
+  clearForms(){
+
+    this.form.reset({ email: '', password: '' });
+    this.focusTick++;
+  }
+
 
   submit() {
     if (this.form.invalid || this.loading()) return;
@@ -56,9 +68,25 @@ export class LoginComponent {
   const passwordClean = (password ?? '').trim();
 
     this.auth.login(emailClean, passwordClean).subscribe({
-      next: ({  accessToken }) => {
-        this.auth.storeSession(accessToken);
-        this.router.navigateByUrl('/');
+    next: () => {
+      this.router.navigateByUrl('/dashboard/home', { replaceUrl: true });
+    },
+      error: (err) => {
+        if(err.status === 401){
+              this.loading.set(false);
+        this.clearForms();
+          this.error.set('Usuario y/o contraseña incorrectos.');
+        }else{
+          this.loading.set(false);
+          this.error = err?.error?.error || 'Credenciales inválidas';
+        }
+      }
+
+    /*  next: ({  token }) => {
+
+        this.auth.storeSession(token);
+        //this.router.navigateByUrl('/');
+        this.router.navigateByUrl('/dashboard/home', { replaceUrl: true });
       } ,
       error: (err) => {
      let msg = 'Error inesperado. Intenta nuevamente.';
@@ -71,7 +99,7 @@ export class LoginComponent {
         this.loading.set(false);
         //this.snack.open(msg, 'Cerrar', { duration: 4000 });
         //console.warn('Login debug →', { status: err?.status, err });
-      }
+      }*/
   });
   }
 
