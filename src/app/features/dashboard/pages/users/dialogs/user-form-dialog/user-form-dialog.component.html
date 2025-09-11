@@ -18,20 +18,21 @@
           <input matInput formControlName="apellido">
         </mat-form-field>
       </div>
-      <div class="dialog-form-fields">
+      <div class="dialog-grid">
         <mat-form-field appearance="outline">
           <mat-label>Usuario</mat-label>
           <input matInput formControlName="usuario">
         </mat-form-field>
 
-        <mat-form-field appearance="outline">
-          <mat-label>Email</mat-label>
-          <input matInput formControlName="email">
-        </mat-form-field>
 
-      </div>
+          <mat-form-field appearance="outline">
+            <mat-label>Email</mat-label>
+            <input matInput formControlName="email">
+          </mat-form-field>
 
-      <div class="dialog-form-fields">
+        </div>
+
+        <div class="dialog-form-fields">
 
         @if(data == null) {
           <mat-form-field appearance="outline">
@@ -66,4 +67,5 @@
   <button mat-flat-button color="primary" (click)="save()" [disabled]="loading() || form.invalid">
     {{ data ? 'Actualizar' : 'Crear' }}
   </button>
+
 </div>

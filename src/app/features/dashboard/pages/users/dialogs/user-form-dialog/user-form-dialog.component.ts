@@ -39,10 +39,10 @@ export class UserFormDialogComponent {
 
   form = this.fb.group({
     name: ['', [Validators.required, Validators.minLength(2)]],
-    email: ['', [Validators.required, Validators.email]],
+    email: ['', [ Validators.email]],
     apellido: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
     usuario: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(100)]],
-    option: [this.fb.control<OptionDto | null>(null), [Validators.required]],
+    option: this.fb.control<OptionDto | null>(null, [Validators.required]),
     clave: ['', [Validators.required, Validators.minLength(6)]]
   });
 
@@ -54,7 +54,7 @@ export class UserFormDialogComponent {
 
 
   ngOnInit() {
-    console.log(this.data);
+
     if (this.data) {
       this.form.patchValue({
         name: this.data.v_firstname,
@@ -64,8 +64,17 @@ export class UserFormDialogComponent {
         option: this.data.pk_states ? { pk_idstates: 1, v_namestate: String(this.data.pk_states) } : null
 
       });
+   const emailCtrl = this.form.get('email')!;
+  emailCtrl.disable({ emitEvent: false });   // no participa en validación
+  emailCtrl.clearValidators();
+  emailCtrl.updateValueAndValidity({ emitEvent: false });
+
+   const clave = this.form.get('clave')!;
+    clave.clearValidators();
+    clave.updateValueAndValidity({ emitEvent: false });
+
     }
-    this.loadingOptions.set(true);
+   this.loadingOptions.set(true);
     this.getOptionsStates();
   }
 

@@ -71,11 +71,11 @@ export class UsersComponent {
     }).subscribe({
       next: (res) => {
 
-         const data = (res.data ?? []).map((u: any) => ({
-        ...u,
-        v_firstname : u.v_firstname ?? '—',
-        pk_states: u.pk_states ?? '—'
-      }));
+        const data = (res.data ?? []).map((u: any) => ({
+          ...u,
+          v_firstname: u.v_firstname ?? '—',
+          pk_states: u.pk_states ?? '—'
+        }));
 
         this.data.set(data);
 
@@ -124,13 +124,25 @@ export class UsersComponent {
     ref.afterClosed().subscribe(ok => {
       if (!ok) return;
       try {
-        const result = this.usersSvc.inactivate(user.pk_iduser);
-        if (result && result.activate === false) {
+
+        this.usersSvc.inactivate(user.pk_iduser).subscribe({
+          next: () => {
+            this.snack.open('Usuario inactivado', 'Cerrar', { duration: 2500 });
+            this.load();
+          },
+          error: () => {
+            this.snack.open('Error inactivando usuario', 'Cerrar', { duration: 3000 });
+          }
+        })
+
+        /*const result = this.usersSvc.inactivate(user.pk_iduser);
+        console.log(result);
+        if (result ){//&& result.activate === false) {
           this.snack.open('Usuario inactivado', 'Cerrar', { duration: 2500 });
           this.load();
         } else {
           this.snack.open('Error inactivando usuario', 'Cerrar', { duration: 3000 });
-        }
+        }*/
       } catch {
         this.snack.open('Error inactivando usuario', 'Cerrar', { duration: 3000 });
       }
@@ -142,8 +154,8 @@ export class UsersComponent {
 
 
   assignRoles(user: User) {
-   const ref = this.dialog.open(AssignRolesDialogComponent, { width: '520px', data: user });
-   ref.afterClosed().subscribe(ok => ok && this.load());
+    const ref = this.dialog.open(AssignRolesDialogComponent, { width: '520px', data: user });
+    ref.afterClosed().subscribe(ok => ok && this.load());
 
   }
 

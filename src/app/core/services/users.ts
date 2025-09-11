@@ -36,15 +36,15 @@ export class Users {
   }
 
   update(id: string, payload: Partial<User>) {
-
+console.log(payload);
     return this.http.put<User>(`${this.base}/4cf4c0b6-7bcc-474e-94e1-0d53e908a3a2/users/${id}`, payload);
   }
   inactivate(id: string) {
-    return this.http.delete<User>(`${this.base}/users/${id}`), { activate: false };
+return this.http.patch<void>(`${this.base}/765eeb20-b57f-4e3a-aa48-8c8486a03fe6/users/${id}/inactivate`, {});
   }
 
   assigRoles(id: string, roles: string[]) {
-    console.log(roles, id);
+
     return this.http.patch<User>(`${this.base}/84fd5a5c-ebfa-4af1-b305-389af2b13d19/users/${id}/roles`, { roles });
   }
 
