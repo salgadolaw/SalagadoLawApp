@@ -1,0 +1,22 @@
+.dialog-container mat-form-field + mat-form-field {
+  margin-left: 8px;
+}
+
+.dialog-container mat-form-field {
+  width: auto;
+}
+
+.dialog-container form{
+  margin-bottom: 20px;
+}
+
+.dialog-container form > * {
+  margin-top: 12px 0;
+}
+
+
+.dialog-form-fields{
+  display: flex;
+ align-items: flex-start;
+
+}
