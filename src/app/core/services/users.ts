@@ -36,7 +36,7 @@ export class Users {
   }
 
   update(id: string, payload: Partial<User>) {
-console.log(payload);
+
     return this.http.put<User>(`${this.base}/4cf4c0b6-7bcc-474e-94e1-0d53e908a3a2/users/${id}`, payload);
   }
   inactivate(id: string) {
