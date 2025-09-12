@@ -1,9 +1,9 @@
-import { inject, Injectable, NgZone } from '@angular/core';
+import { computed, inject, Injectable, NgZone, signal } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
-import { auditTime, BehaviorSubject, filter, fromEvent, merge, Subscription, switchMap, takeUntil, tap, timer } from 'rxjs';
+import { auditTime, BehaviorSubject, filter, fromEvent, interval, merge, skip, Subscription, switchMap, takeUntil, tap, timer, withLatestFrom } from 'rxjs';
 import { environment } from '../../../environments/environment.development';
 import { SessionWarningDialogComponent } from '../../shared/components/session-warning-dialog/session-warning-dialog.component';
 
@@ -12,25 +12,34 @@ import { SessionWarningDialogComponent } from '../../shared/components/session-w
 })
 export class IdleService {
   private zone = inject(NgZone);
- private router = inject(Router);
- private dialog = inject(MatDialog);
-private auth = inject(AuthService);
-private tokens = inject(TokenService);
+  private router = inject(Router);
+  private dialog = inject(MatDialog);
+  private auth = inject(AuthService);
+  private tokens = inject(TokenService);
 
 
- private lastActivity$ = new BehaviorSubject<number>(Date.now());
+  private lastActivity$ = new BehaviorSubject<number>(Date.now());
   private subs = new Subscription();
   private dialogRef: any | null = null;
 
-   private readonly timeoutMs = environment.auth?.idle?.timeoutMs ?? 15 * 60_000;
-  private readonly warningMs = Math.min(
-    environment.auth?.idle?.warningDurationMs ?? 60_000,
-    this.timeoutMs
-  );
+  private readonly timeoutMs = signal<number>(environment.auth?.idle?.timeoutMs ?? 10 * 60_000);
+  private readonly warningMs = signal<number>(
+    Math.min(
+      environment.auth?.idle?.warningDurationMs ?? 60_000,
+      this.timeoutMs()
+    ));
+
+
+  remainingMs = signal<number>(this.timeoutMs());
+  remainingSeconds = computed(() => Math.max(0, Math.ceil(this.remainingMs() / 1000)));
+
+  /** Restante hasta mostrar aviso (ms) = timeout - warning */
+  private preWarnMs = computed(() => Math.max(this.timeoutMs() - this.warningMs(), 0));
 
 
 
- start() {
+  start() {
+
     // Observa eventos de usuario y sincroniza entre pestañas
     this.zone.runOutsideAngular(() => {
       const activityEvents$ = merge(
@@ -57,34 +66,36 @@ private tokens = inject(TokenService);
 
     // Programa el aviso y la expulsión cuando haya token válido
     this.subs.add(
-      this.lastActivity$
-        .pipe(
-          // sólo aplicar idle si hay sesión válida
-          filter(() => this.tokens.isAuthenticated()),
-          // cada vez que hay actividad, reprogramar alertas
-          switchMap(() => {
-            // cerrar diálogo si está abierto y hubo actividad
-            if (this.dialogRef) {
-              this.zone.run(() => this.dialogRef.close('stay'));
-            }
-
-            const preWarn = Math.max(this.timeoutMs - this.warningMs, 0);
-
-            // Temporizador hasta aviso
-            return timer(preWarn).pipe(
-              tap(() => this.openWarningDialog()),
-              // después del aviso, esperar el warningMs para expulsar,
-              // pero cancelar si hay nueva actividad
-              switchMap(() =>
-                timer(this.warningMs).pipe(
-                  takeUntil(this.lastActivity$) // cualquier actividad cancela
-                )
-              )
-            );
-          })
-        )
-        .subscribe(() => this.logout('idle-timeout'))
+      interval(1000)
+        .pipe(withLatestFrom(this.lastActivity$))
+        .subscribe(([_, last]) => {
+          const left = this.timeoutMs() - (Date.now() - last);
+          this.zone.run(() => this.remainingMs.set(Math.max(0, left)));
+        })
     );
+    this.subs.add(
+      this.lastActivity$.pipe(
+        filter(() => this.tokens.isAuthenticated()),   // sólo si hay sesión
+        switchMap(() => {
+          // cerrar diálogo si estaba abierto
+          if (this.dialogRef) this.zone.run(() => this.dialogRef.close('stay'));
+
+          const nextActivity$ = this.lastActivity$.pipe(skip(1));
+          const preWarn = this.preWarnMs();   // constante por ciclo
+          const warnDur = this.warningMs();   // duración del aviso
+
+          // Espera hasta el aviso (pero cancela ante nueva actividad)
+          return timer(preWarn).pipe(
+            takeUntil(nextActivity$),
+            tap(() => this.openWarningDialog()),
+            // Tras abrir el aviso, cuenta hasta el logout (pero cancela con actividad)
+            switchMap(() => timer(warnDur).pipe(takeUntil(nextActivity$)))
+          );
+        })
+      ).subscribe(() => this.logout('idle-timeout'))
+    );
+
+
   }
 
   /** Llamar al destruir la app (opcional). */
@@ -93,6 +104,14 @@ private tokens = inject(TokenService);
     this.subs = new Subscription();
     this.dialogRef?.close();
     this.dialogRef = null;
+    this.remainingMs.set(0);
+  }
+
+  setTimeoutMs(ms: number, warningMs?: number) {
+    this.timeoutMs.set(ms);
+    if (warningMs !== undefined) this.warningMs.set(Math.min(warningMs, ms));
+    // Reinicia el ciclo con nueva configuración
+    this.onActivity();
   }
 
   /** Forzar reinicio del temporizador (p.ej., tras login o click en "Seguir conectado"). */
@@ -116,10 +135,10 @@ private tokens = inject(TokenService);
         width: '420px'
       });
 
-      const seconds = Math.ceil(this.warningMs / 1000);
+      const seconds = Math.ceil(this.warningMs() / 1000);
       this.dialogRef.componentInstance.start(seconds);
 
-      this.dialogRef.afterClosed().subscribe((result: 'stay'|'logout'|'timeout'|undefined) => {
+      this.dialogRef.afterClosed().subscribe((result: 'stay' | 'logout' | 'timeout' | undefined) => {
         this.dialogRef = null;
         if (result === 'stay') {
           // Usuario quiere seguir: reprograma (actividad)
@@ -134,6 +153,8 @@ private tokens = inject(TokenService);
   private logout(reason: 'idle-timeout' | 'user-choice') {
     // Elimina token y manda al login
     this.zone.run(() => {
+ try{ this.dialog.closeAll(); }catch{}
+
       this.auth.logOut();
       this.router.navigate(['/auth/login'], { replaceUrl: true, state: { reason } });
     });

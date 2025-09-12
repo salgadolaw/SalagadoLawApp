@@ -12,7 +12,7 @@
         <!-- Email -->
         <mat-form-field appearance="outline" subscriptSizing="dynamic" class="w-full">
           <mat-label>Email</mat-label>
-          <input matInput type="email" formControlName="email" autocomplete="email" />
+          <input matInput type="email" formControlName="email" autocomplete="email" [appAutoFocus]="focusTick" />
           <button *ngIf="form.controls.email.value" mat-icon-button matSuffix type="button" aria-label="Limpiar email"
             (click)="clearEmail()">
             <mat-icon>close</mat-icon>

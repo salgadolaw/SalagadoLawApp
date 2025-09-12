@@ -1,0 +1,71 @@
+<h2 mat-dialog-title>{{ data ? 'Editar usuario' : 'Nuevo usuario' }}</h2>
+<div mat-dialog-content>
+  <form [formGroup]="form" class="grid gap-3">
+
+
+    <mat-divider></mat-divider>
+
+    <div class="dialog-container">
+      <div class="dialog-form-fields">
+
+        <mat-form-field appearance="outline">
+          <mat-label>Nombre</mat-label>
+          <input matInput formControlName="name">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Apellido</mat-label>
+          <input matInput formControlName="apellido">
+        </mat-form-field>
+      </div>
+      <div class="dialog-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Usuario</mat-label>
+          <input matInput formControlName="usuario">
+        </mat-form-field>
+
+
+          <mat-form-field appearance="outline">
+            <mat-label>Email</mat-label>
+            <input matInput formControlName="email">
+          </mat-form-field>
+
+        </div>
+
+        <div class="dialog-form-fields">
+
+        @if(data == null) {
+          <mat-form-field appearance="outline">
+            <mat-label>Password</mat-label>
+            <input matInput formControlName="clave" type="password">
+          </mat-form-field>
+        }
+
+
+        <mat-form-field appearance="outline">
+          <mat-label>Estado</mat-label>
+          <mat-select *ngIf="form.get('option')" formControlName="option"
+            (selectionChange)="onSelectionChange($any($event))">
+            <mat-option *ngIf="loadingOptions()" disabled>
+              Cargando...
+            </mat-option>
+            <ng-container *ngIf="!loadingOptions()">
+              <mat-option *ngFor="let opt of options()" [value]="opt">
+                {{ opt.v_namestate }}
+              </mat-option>
+            </ng-container>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+    </div>
+
+  </form>
+</div>
+<div mat-dialog-actions align="end">
+  <button mat-button (click)="close()">Cancelar</button>
+  <button mat-flat-button color="primary" (click)="save()" [disabled]="loading() || form.invalid">
+    {{ data ? 'Actualizar' : 'Crear' }}
+  </button>
+
+</div>

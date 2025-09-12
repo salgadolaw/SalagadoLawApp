@@ -23,15 +23,17 @@ import { interval, Subscription } from 'rxjs';
 export class SessionWarningDialogComponent implements OnDestroy {
   private ref = inject(MatDialogRef<SessionWarningDialogComponent>);
   private sub?: Subscription;
-  seconds = signal(60); // el IdleService fijará el valor real al abrir
+  seconds = signal(20); // el IdleService fijará el valor real al abrir
 
   start(secondsTotal: number) {
+    console.log('acceso a start');
     this.seconds.set(secondsTotal);
     this.sub?.unsubscribe();
     this.sub = interval(1000).subscribe(() => {
       const next = this.seconds() - 1;
       this.seconds.set(Math.max(next, 0));
-      if (next <= 0) this.ref.close('timeout');
+      if (next <= 0) {this.seconds.set(0); this.ref.close('timeout'); return;}
+      this.seconds.set(next);
     });
   }
 
