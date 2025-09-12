@@ -1,0 +1,11 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.w-72 { width: 18rem; }
+.total { margin-left: auto; font-size: 0.9rem; opacity: .75; }
+
+.inactivo { color: #c62828; font-weight: 600; }
+table { width: 100%; }
