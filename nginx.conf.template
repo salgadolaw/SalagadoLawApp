@@ -32,7 +32,7 @@ server {
   # EXACTO /api (sin barra)
   location = /api {
     if ($request_method = 'OPTIONS') {
-      add_header Access-Control-Allow-Origin $cors_origin always;
+      add_header Access-Control-Allow-Origin https://dev-app.salgadoimmigrationlaw.com always;
       add_header Access-Control-Allow-Credentials true always;
       add_header Access-Control-Allow-Headers $http_access_control_request_headers always;
       add_header Access-Control-Allow-Methods "GET,POST,PUT,PATCH,DELETE,OPTIONS" always;
@@ -41,7 +41,7 @@ server {
       return 204;
     }
 
-    add_header Access-Control-Allow-Origin $cors_origin always;
+    add_header Access-Control-Allow-Origin https://dev-app.salgadoimmigrationlaw.com always;
     add_header Access-Control-Allow-Credentials true always;
     add_header Content-Security-Policy "upgrade-insecure-requests" always;
     add_header Vary Origin always;
