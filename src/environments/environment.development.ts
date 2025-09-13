@@ -1,7 +1,7 @@
 import { timeout } from "rxjs";
 
 export const environment = {
-  production: false,
+  production: true,
   apiBaseUrl: '/api',
   auth: {
     mock: true,
