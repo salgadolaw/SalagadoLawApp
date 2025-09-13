@@ -28,7 +28,7 @@ server {
 
   # CORS (si tu front es el mismo host, puedes quitarlo)
   set $cors_origin "https://dev-app.salgadoimmigrationlaw.com";
-  set $N8N_BASE https://webhook.salgadoimmigrationlaw.com;
+
   # EXACTO /api (sin barra)
   location = /api {
     if ($request_method = 'OPTIONS') {
