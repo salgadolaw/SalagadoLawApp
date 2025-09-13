@@ -24,7 +24,7 @@ export class AuthService {
   login(email: string, password: string) {
 
     //return this.http.post<{ accessToken: string }>(`${this.base}/auth/login`, { email, password });
-return this.http.post<{ token: string }>(`${this.base}/weh/auth/login`, { email, password })
+return this.http.post<{ token: string }>(`${this.base}/auth/login`, { email, password })
 .pipe(
   tap(({ token }) => {
      this.tokens.setToken(token);
